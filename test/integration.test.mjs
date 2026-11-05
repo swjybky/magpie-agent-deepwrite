@@ -8,6 +8,7 @@ import { atomic, read } from "../lib/storage.mjs";
 import { synchronize, connectionAt, MODEL_ID } from "../lib/sync.mjs";
 import { handler } from "../lib/proxy.mjs";
 import { paths } from "../lib/paths.mjs";
+import { modelId } from "../lib/catalog.mjs";
 import { agent, connect } from "../deepwrite.agent.js";
 const c = {
   model: "fixture/writer",
@@ -31,7 +32,7 @@ function fixture(t) {
   const original = {
     version: 3,
     defaultModelId: "existing",
-    models: [{ id: "existing", label: "Existing" }],
+    models: [{ id: "existing", label: "Existing", provider: "magpie" }],
     encryptedApiKeys: { existing: "invalid-encrypted-placeholder" },
     enabledFreeModelIds: [],
     customFutureField: 42,
@@ -42,8 +43,11 @@ function fixture(t) {
 test("connect, switch and disconnect preserve models, ciphertext and unrelated edits", (t) => {
   const { p, original } = fixture(t);
   synchronize(p, c, "http://127.0.0.1:1234/invalid-token/v1");
-  assert.equal(read(p.config).defaultModelId, MODEL_ID);
-  assert.deepEqual(read(p.config).encryptedApiKeys, original.encryptedApiKeys);
+  assert.equal(read(p.config).defaultModelId, modelId(c.selected.id));
+  assert.equal(
+    read(p.config).encryptedApiKeys.existing,
+    original.encryptedApiKeys.existing,
+  );
   let d = read(p.config);
   d.customFutureField = 43;
   atomic(p.config, d);
@@ -83,7 +87,10 @@ test("unknown versions and ID collisions fail without overwriting config", (t) =
   const raw = readFileSync(p.config, "utf8");
   assert.throws(() => synchronize(p, c, ""), /version 3/);
   assert.equal(readFileSync(p.config, "utf8"), raw);
-  atomic(p.config, { ...original, models: [{ id: MODEL_ID }] });
+  atomic(p.config, {
+    ...original,
+    models: [{ id: modelId(c.selected.id), provider: "magpie" }],
+  });
   assert.throws(() => synchronize(p, c, ""), /already exists/);
 });
 test("connection uses dedicated agent credentials and rejects partial writes", (t) => {
@@ -94,9 +101,15 @@ test("connection uses dedicated agent credentials and rejects partial writes", (
   });
   atomic(p.config, { ...payload, model: c.model });
   assert.equal(connectionAt(p.config).key, c.key);
-  atomic(p.config, { ...payload, model: "other" });
+  atomic(p.config, { ...c, model: "other" });
   assert.throws(() => connectionAt(p.config), /Incomplete/);
   assert.equal(agent.id, "deepwrite");
+  assert.equal(agent.model, undefined);
+  const full = connect({
+    gateway: { v1: c.gateway, key: c.key },
+    models: [c.selected, { ...c.selected, id: "fixture/second" }],
+  });
+  assert.equal(full.models.length, 2);
 });
 test("paths follow DW storage migration pointer", (t) => {
   const root = mkdtempSync(join(tmpdir(), "magpie-dw-paths-"));
@@ -150,4 +163,81 @@ test("proxy streams SSE, injects auth, forwards errors and rejects browser/stale
     (await handler(() => null, "invalid-test-token")(request())).status,
     503,
   );
+});
+
+test("full catalog has stable independent magpie models, credentials, defaults and cleanup", (t) => {
+  const { p, original } = fixture(t);
+  const second = {
+    ...c.selected,
+    id: "fixture/second",
+    name: "Second",
+    native_endpoints: ["/v1/responses"],
+  };
+  const full = { ...c, catalogVersion: 2, models: [c.selected, second] };
+  synchronize(p, full, "http://127.0.0.1:1234/invalid-token/v1");
+  let state = read(p.config);
+  assert.equal(state.models.length, 3);
+  assert.deepEqual(
+    state.models.slice(1).map((m) => m.provider),
+    ["magpie", "magpie"],
+  );
+  assert.equal(state.models[2].api, "openai-responses");
+  assert.equal(
+    state.encryptedApiKeys[modelId(second.id)],
+    original.encryptedApiKeys.existing,
+  );
+  state.defaultModelId = modelId(second.id);
+  atomic(p.config, state);
+  synchronize(p, full, "http://127.0.0.1:1234/invalid-token/v1");
+  assert.equal(read(p.config).defaultModelId, modelId(second.id));
+  synchronize(
+    p,
+    { ...full, models: [c.selected] },
+    "http://127.0.0.1:1234/invalid-token/v1",
+  );
+  assert.equal(read(p.config).models.length, 2);
+  assert.equal(read(p.config).encryptedApiKeys[modelId(second.id)], undefined);
+  synchronize(p, null, "");
+  assert.deepEqual(read(p.config), original);
+});
+test("legacy single Ollama entry migrates to complete magpie list and restores original default", (t) => {
+  const { p, original } = fixture(t);
+  atomic(p.config, {
+    ...original,
+    defaultModelId: MODEL_ID,
+    models: [
+      ...original.models,
+      { id: MODEL_ID, provider: "ollama", modelId: c.model },
+    ],
+  });
+  atomic(p.journal, {
+    version: 1,
+    config: p.config,
+    previousDefault: original.defaultModelId,
+  });
+  synchronize(p, c, "http://127.0.0.1:1234/invalid-token/v1");
+  const state = read(p.config);
+  assert.equal(
+    state.models.some((m) => m.id === MODEL_ID),
+    false,
+  );
+  assert.equal(state.models[1].provider, "magpie");
+  synchronize(p, null, "");
+  assert.deepEqual(read(p.config), original);
+});
+test("catalog cannot overflow DW limit and never borrows other provider credentials", (t) => {
+  const { p, original } = fixture(t);
+  const models = Array.from({ length: 100 }, (_, i) => ({
+    ...c.selected,
+    id: `fixture/${i}`,
+  }));
+  assert.throws(() => synchronize(p, { ...c, models }, ""), /at most 100/);
+  assert.deepEqual(read(p.config), original);
+  assert.equal(read(p.journal, null), null);
+  atomic(p.config, {
+    ...original,
+    models: [{ ...original.models[0], provider: "another" }],
+  });
+  assert.throws(() => synchronize(p, c, ""), /magpie/);
+  assert.equal(read(p.journal, null), null);
 });

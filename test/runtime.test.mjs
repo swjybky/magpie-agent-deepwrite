@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { setTimeout as delay } from "node:timers/promises";
+import { synchronize } from "../lib/sync.mjs";
 import { atomic, read } from "../lib/storage.mjs";
 const bun = process.env.BUN_BIN;
 test(
@@ -18,9 +19,9 @@ test(
     const config = join(root, "dw/config/models.json");
     const original = {
       version: 3,
-      models: [{ id: "existing" }],
+      models: [{ id: "existing", provider: "magpie" }],
       defaultModelId: "existing",
-      encryptedApiKeys: {},
+      encryptedApiKeys: { existing: "invalid-encrypted-fixture" },
     };
     atomic(config, original);
     const gateway = createServer((req, res) => {
@@ -47,6 +48,15 @@ test(
       },
     };
     const connection = join(root, "bridge/connection.json");
+    c.catalogVersion = 2;
+    c.models = [
+      c.selected,
+      {
+        ...c.selected,
+        id: "fixture/second",
+        native_endpoints: ["/v1/responses"],
+      },
+    ];
     atomic(connection, c);
     const child = spawn(
       bun,
@@ -74,7 +84,7 @@ test(
       }
       assert.fail(`Runtime timed out: ${errors}`);
     }
-    await until(() => read(config).models.length === 2);
+    await until(() => read(config).models.length === 3);
     const model = read(config).models[1];
     const response = await fetch(`${model.baseUrl}/chat/completions`, {
       method: "POST",
@@ -82,11 +92,19 @@ test(
     });
     assert.equal(response.status, 200);
     assert.match(await response.text(), /DONE/);
+    const second = read(config).models[2];
+    assert.equal(second.provider, "magpie");
+    const secondResponse = await fetch(`${second.baseUrl}/responses`, {
+      method: "POST",
+      body: JSON.stringify({ model: second.modelId, stream: true }),
+    });
+    assert.equal(secondResponse.status, 200);
+    assert.match(await secondResponse.text(), /DONE/);
     atomic(connection, {});
     await until(() => read(config).models.length === 1);
     assert.deepEqual(read(config), original);
     atomic(connection, c);
-    await until(() => read(config).models.length === 2);
+    await until(() => read(config).models.length === 3);
     if (process.platform === "win32") {
       // Windows cannot deliver a POSIX SIGTERM; verify graceful disconnect first.
       atomic(connection, {});
@@ -94,6 +112,14 @@ test(
     }
     child.kill("SIGTERM");
     await once(child, "exit");
+    if (process.platform !== "win32")
+      assert.equal(read(config).models.length, 3);
+    // Explicit disconnect/recovery still removes only our models.
+    synchronize(
+      { config, journal: join(root, "bridge/journal.json") },
+      null,
+      "",
+    );
     assert.deepEqual(read(config), original);
   },
 );

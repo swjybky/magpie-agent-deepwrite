@@ -1,6 +1,6 @@
 {
   "name": "magpie-agent-deepwrite",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DeepWrite Agent integration for Magpie — 为 DeepWrite 一键接入 Magpie 模型",
   "type": "module",
   "main": "./index.mjs",

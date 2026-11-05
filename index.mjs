@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { paths } from "./lib/paths.mjs";
 import { atomic } from "./lib/storage.mjs";
 import { connectionAt, synchronize } from "./lib/sync.mjs";
+import { catalog } from "./lib/catalog.mjs";
 import { handler } from "./lib/proxy.mjs";
 import { claim, release } from "./lib/lease.mjs";
 
@@ -35,6 +36,7 @@ export const DeepWritePlugin = async () => {
       synchronize(p, connection, baseUrl);
       atomic(p.status, {
         connected: !!connection,
+        modelCount: connection ? catalog(connection).length : 0,
         updatedAt: new Date().toISOString(),
       });
       lastError = "";
@@ -52,7 +54,8 @@ export const DeepWritePlugin = async () => {
     clearInterval(timer);
     if (!server) return;
     try {
-      synchronize(p, null, baseUrl);
+      // Keep catalog IDs and the chosen DW default across Magpie restarts.
+      if (!connectionAt(p.connection)) synchronize(p, null, baseUrl);
     } catch {}
     server.stop(true);
     server = undefined;

@@ -3,27 +3,29 @@ export const agent = {
   id: "deepwrite",
   name: "DeepWrite",
   config: "~/.config/magpie-deepwrite/connection.json",
-  model: "model",
   bin: "deepwrite",
   dir: "~/.config/magpie-deepwrite",
   ua: ["deepwrite"],
   notice:
-    "请先退出 DeepWrite 再切换连接，等待 2 秒后重开。卸载前先关闭本行连接。插件使用本地桥接，需保持 Magpie 运行。",
+    "已同步完整模型列表。请退出 DeepWrite，等待 2 秒后重开，在 magpie 分组中选模型。卸载前先关闭连接。",
 };
-
-export function connect({ gateway, model }) {
-  if (!gateway || !gateway.v1 || !gateway.key || !model || !model.id) {
-    throw new Error("DeepWrite needs a Magpie gateway and a selected model.");
-  }
+export function connect({ gateway, models, model }) {
+  if (!gateway?.v1 || !gateway?.key)
+    throw new Error("DeepWrite needs a Magpie gateway.");
+  const catalog = models || (model ? [model] : []);
+  if (!catalog.length)
+    throw new Error("No Magpie models are available to DeepWrite.");
   return {
+    catalogVersion: 2,
     gateway: gateway.v1,
     key: gateway.key,
-    selected: {
-      id: model.id,
-      name: model.name || model.id,
-      context: model.context || 128000,
-      output: model.output || 16384,
-      efforts: model.efforts || [],
-    },
+    models: catalog.map((m) => ({
+      id: m.id,
+      name: m.name || m.id,
+      context: m.context || 128000,
+      output: m.output || 16384,
+      efforts: m.efforts || [],
+      native_endpoints: m.native_endpoints || [],
+    })),
   };
 }

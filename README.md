@@ -1,74 +1,68 @@
 # DeepWrite for Magpie
 
-在 Magpie 的 Agent 页面给 **DeepWrite** 选模型、打开连接，即可通过 Magpie 网关写作。独立插件，无需修改 DeepWrite 源码。
+将 Magpie 提供给 DeepWrite 的**完整模型列表**逐条同步到 DW 的 **magpie** 分组。每个模型有独立配置与稳定 ID，可在 DW 中自由切换；无需修改 DW 源码。
 
-## 安装与使用
+## 安装、更新与使用
 
-1. 在 Magpie → 插件 → 发现，搜索 **DeepWrite**，选择「非官方插件 · GitHub」中的 `swjybky/magpie-agent-deepwrite`。
-2. 如果搜索索引尚未更新，在添加插件输入框粘贴 `github:swjybky/magpie-agent-deepwrite`，点击安装。
-3. 先打开过一次 DeepWrite，让它创建模型配置；**退出 DeepWrite**。
-4. 在 Magpie → Agent → **DeepWrite** 选择一个 Magpie 模型，开启连接，等待约 2 秒。
-5. 重开 DeepWrite，使用 **Magpie · 模型名称**。已有作品或团队绑定了其他模型时，在 DW 的模型选择器改选这个模型。
+在 Magpie 搜索 **DeepWrite**（非官方插件 · GitHub），或直接添加：
 
-Magpie 必须保持运行。首次加载插件时，Magpie 自己下载和管理 Bun，无需手动安装运行时。Windows / Linux 的实现已包含，但目前只在 macOS 验证；建议先备份模型配置再使用。
-
-也可以用命令行安装（确保 Magpie 应用保持运行）：
-
-```sh
-magpie plugin add github:swjybky/magpie-agent-deepwrite
+```text
+github:swjybky/magpie-agent-deepwrite
 ```
 
-这是第三方插件，不带「magpie 社区」认证。无需登录额外服务，使用你已经在 Magpie 配好的提供商和模型。
+1. 退出 DeepWrite。
+2. 在 Magpie 的 Agent 页开启 **DeepWrite**。这里只需要连接开关，不再选择单个模型。
+3. 等待约 2 秒后重开 DW：设置 → 模型中的 **magpie** 分组会列出每个模型，DW 的模型选择器也可以逐个选择。
 
-## 切换与断开
+保持 Magpie 运行。新模型、删除模型和可见范围变化后，Magpie 会重新提交目录，插件同步对应条目。已在 DW 选定的默认模型不会在后台每秒被重置。已有作品或团队绑定其他模型时，在 DW 中改选相应 Magpie 模型。
 
-切换模型前先退出 DW，在 Magpie 更换模型，等待 2 秒再重开 DW。关闭连接时也执行相同顺序。插件移除自己的模型，并恢复原来的默认模型；其他模型、密钥及使用期间新增的配置保留。**卸载插件前先关闭 DeepWrite 这一行的连接**。
+### 从 v0.1.0 升级
 
-如果 DW 运行期间修改模型配置，它可能与外部同步竞争，所以请按上述顺序操作。插件不会替换正在运行的团队所绑定的模型，也不会自动中断正在生成的内容。
+先退出 DW，在 Magpie 关闭 DeepWrite 连接，然后在插件列表更新 **DeepWrite** 到 v0.2.0，再开启连接。旧版单条 `Ollama / Magpie · …` 配置会迁移为完整的 **magpie** 模型列表。不要同时安装本地版和 GitHub 版，它们的 Agent ID 相同。
 
-## 工作方式与权限
+### DW 的加密凭据
 
-- `deepwrite.agent.js` 在 Magpie 的 moejs 沙盒声明 Agent，并接收它为 DeepWrite 分配的专用网关 key。
-- `index.mjs` 在 Magpie 的 Bun 插件宿主内启动仅监听 `127.0.0.1` 随机端口的桥接服务。它只转发 OpenAI Chat Completions；Magpie 负责转换实际提供商协议。
-- DW 使用已有的免密钥 Ollama 兼容通道，因此提供商字段显示 `ollama`，模型名称显示 `Magpie · …`。实际请求发给 Magpie，**无需安装 Ollama**。
-- 桥接地址带随机能力令牌，拒绝浏览器 Origin / Fetch Metadata 请求；网关鉴权在桥接内完成。请求、正文和凭据不会写入日志。
-- DW 的 `encryptedApiKeys` 保持原样，不读取系统钥匙串，不向 DW 写入明文 API Key。
-- 专用模型 ID 为 `magpie-deepwrite`；同名冲突、超过 100 个模型、不支持的配置版本会拒绝写入。
-- 配置以临时文件 + fsync + 原子重命名保存；恢复记录先于模型配置写入。它不与 DW 内部保存共享事务锁，因此要求在 DW 退出时切换。
-- CLI 和 GUI 的插件宿主通过本地租约避免同时改写 DW。
+为了显示真正的 `magpie` 提供商并通过 DW 原生的密钥检查，插件需要 DW 中**至少一个提供商名称为 `magpie`、已保存密钥的模型**。已有 Magpie 配置的用户不需要再配置。
 
-本插件只支持 DW `models.json` **version 3**（按 DeepWrite 1.8.0 源码核对）。不适用旧版配置。
+首次使用且没有任何 Magpie 配置时，在 DW 添加一个提供商名为 `magpie` 的模型，并保存一个非空本地桥接占位密钥（例如 `magpie-local-bridge`），然后退出 DW、开启连接。DW 会用自己的系统存储加密它；插件只复制这份**加密数据**到新增条目，不解密、不读取钥匙串，也不借用其他供应商的密钥。
 
-## 配置路径
+占位密钥只用于 DW → 本地桥接。桥接发给 Magpie 的请求使用 Magpie 分配给 DeepWrite 的**专用网关 key**，不会向上游转发 DW 的占位密钥或原有 Magpie 凭据。
 
-桥接文件统一在 `~/.config/magpie-deepwrite/`：
+## 同步范围与恢复
+
+- 每个 Magpie 模型映射为一个稳定的 DW 模型 ID，统一提供商名为 `magpie`。支持模型名称、上下文、输出上限和思考档位。
+- 优先使用模型声明的原生 Responses 端点，否则使用 Chat Completions；Magpie 负责提供商协议转换。
+- 插件只管理恢复记录中的模型 ID；原有手动配置及其他供应商模型保留。手动配置与自动导入模型可并存。
+- 关闭连接后移除插件导入的模型与对应密文，恢复接入前默认模型；用户后来手动选了其他模型时保留该选择。
+- **卸载前先关闭连接。** 关闭、切换连接时先退出 DW，避免 DW 自身保存配置与外部同步竞争。
+- DW 当前最多保存 100 个模型。已有模型加上待同步模型超过 100 时，插件明确报错并保留原配置，**不会悄悄截断列表**。请在 Magpie 减少对 DeepWrite 可见的模型后重新连接。
+
+## 运行方式与配置路径
+
+Agent 定义运行于 Magpie 的 moejs 沙盒，桥接运行于它的 Bun 插件宿主。无需单独安装 Bun、Ollama 或 npm 依赖。
+
+桥接只监听 `127.0.0.1` 随机端口，路径含随机令牌；拒绝浏览器 Origin / Fetch Metadata 请求。支持流式 Chat Completions 与 Responses。网关请求必须指向当前目录内的模型；正文和密钥不记日志。
+
+`~/.config/magpie-deepwrite/` 中的文件：
 
 | 文件              | 用途                                                |
 | ----------------- | --------------------------------------------------- |
-| `connection.json` | Magpie 管理的网关、所选模型和专用 key，属于敏感文件 |
-| `journal.json`    | 接入前默认模型与目标配置路径，用于恢复              |
-| `status.json`     | 当前连接状态或错误，不含 key                        |
-| `runtime.lock/`   | 插件宿主租约                                        |
+| `connection.json` | Magpie 写入的网关、专用 key、完整模型目录；敏感文件 |
+| `journal.json`    | 本插件管理的模型 ID、接入前默认模型、复用的加密凭据 |
+| `status.json`     | 连接状态、同步模型数或错误，不含明文凭据            |
+| `runtime.lock/`   | 防止 GUI 与 CLI 的多个宿主同时改写 DW               |
 
-DW 默认目录：
+DW 数据目录默认查找：macOS 的 `~/Library/Application Support/@deepwrite/desktop`，Windows 的 `%APPDATA%/@deepwrite/desktop`，Linux 的 `$XDG_CONFIG_HOME/@deepwrite/desktop` 或 `~/.config/@deepwrite/desktop`，同时兼容 `DeepWrite` 目录名。自动读取 DW 存储迁移指针。
 
-- macOS：`~/Library/Application Support/@deepwrite/desktop`，兼容 `~/Library/Application Support/DeepWrite`。
-- Windows：`%APPDATA%/@deepwrite/desktop`，兼容 `%APPDATA%/DeepWrite`。
-- Linux：`$XDG_CONFIG_HOME/@deepwrite/desktop` 或 `~/.config/@deepwrite/desktop`，兼容 `DeepWrite`。
+自定义位置可在启动 Magpie 前设置 `DEEPWRITE_USER_DATA_PATH`，指向包含 `config/models.json` 的目录。要求 DW `models.json` version 3（按 DeepWrite 1.8.0 核对）。
 
-自动读取 DW 的 `.desktop.storage-location.json` / `.DeepWrite.storage-location.json` 存储迁移指针。自定义配置可在**启动 Magpie 前**设置 `DEEPWRITE_USER_DATA_PATH`，值为包含 `config/models.json` 的 DW 数据目录。
-
-## 故障恢复
-
-正常关闭连接或 Magpie 正常终止宿主会恢复配置。断电、强制结束进程可能留下专用模型；下次启动插件会恢复同步。需要彻底清理时，先关闭 Magpie 与 DW，再在下载的插件目录执行：
+正常关闭连接会清理本插件的配置；Magpie 自身退出或宿主重启时保留模型列表与默认选择，下次运行自动更新桥接地址。强制结束、断电后需要彻底恢复时，先退出 Magpie 和 DW，再在插件目录运行：
 
 ```sh
 node scripts/disconnect.mjs
 ```
 
-如果安装于自定义 DW 数据目录，执行恢复命令时同样设置 `DEEPWRITE_USER_DATA_PATH`。请勿手动删除恢复记录后再执行恢复。
-
-看不到模型时检查 `~/.config/magpie-deepwrite/status.json` 和 Magpie 插件错误信息。连接状态是异步的：Agent 开关反映 Magpie 已写入连接信息，`status.json` 反映 DW 配置是否已同步。
+Agent 开关表示 Magpie 已写入连接信息；实际同步结果及模型数见 `status.json`。自定义 DW 路径时，恢复命令使用同样的环境变量。
 
 ## 开发与验证
 
@@ -77,10 +71,6 @@ npm test
 BUN_BIN=/path/to/bun npm test
 ```
 
-无运行时依赖，无安装脚本或构建步骤，GitHub 源码可直接安装。测试包含配置保存与恢复、切换、密文保留、冲突拒绝、迁移路径、SSE 转发、鉴权、错误路径，以及 Bun 宿主的连接/断开/SIGTERM 恢复。Bun 集成测试需要显式提供 `BUN_BIN`；未提供时报告跳过。
+覆盖完整目录导入与增删、默认模型保留、旧版迁移、断开恢复、密文保留、限额与冲突拒绝、路径迁移，以及 Bun 宿主的多模型流式转发、Responses 和终止恢复。未提供 `BUN_BIN` 时 Bun 集成测试明确报告跳过。真实付费模型写作需在用户环境验收。
 
-已在本机 Magpie 0.1.2945 的隔离配置中实际加载，并确认 Agent 列表出现 DeepWrite。尚未执行真实付费模型的写作验收；测试使用独立配置与本地模拟网关。
-
-依据：[Magpie Agent 插件规范](https://usemagpie.ai/docs/zh/plugins#agents) · [GitHub 发布与发现](https://usemagpie.ai/docs/zh/plugins#publish)。
-
-MIT License.
+[Agent 插件规范](https://usemagpie.ai/docs/zh/plugins#agents) · [插件发布规范](https://usemagpie.ai/docs/zh/plugins#publish) · MIT License
