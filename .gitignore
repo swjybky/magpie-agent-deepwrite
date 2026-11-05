@@ -1,0 +1,5 @@
+.tools/
+.sandbox/
+node_modules/
+*.tgz
+.env

@@ -1,0 +1,43 @@
+{
+  "name": "magpie-agent-deepwrite",
+  "version": "0.1.0",
+  "description": "DeepWrite Agent integration for Magpie — 为 DeepWrite 一键接入 Magpie 模型",
+  "type": "module",
+  "main": "./index.mjs",
+  "files": [
+    "index.mjs",
+    "deepwrite.agent.js",
+    "lib",
+    "scripts",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "disconnect": "node scripts/disconnect.mjs"
+  },
+  "keywords": [
+    "magpie",
+    "magpie-plugin",
+    "magpie-agent",
+    "deepwrite",
+    "opencode",
+    "opencode-plugin"
+  ],
+  "author": "CarS (swjybky)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swjybky/magpie-agent-deepwrite.git"
+  },
+  "magpie": {
+    "agent": "./deepwrite.agent.js",
+    "name": "DeepWrite",
+    "summary": {
+      "en": "Connect DeepWrite to a Magpie model with one switch. A local bridge preserves existing models and encrypted keys.",
+      "zh": "为 DeepWrite 一键接入 Magpie 模型；本地桥接，保留已有模型与加密密钥。"
+    },
+    "icon": "https://raw.githubusercontent.com/swjybky/magpie-agent-deepwrite/main/icon.svg"
+  }
+}
