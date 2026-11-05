@@ -87,6 +87,11 @@ test(
     assert.deepEqual(read(config), original);
     atomic(connection, c);
     await until(() => read(config).models.length === 2);
+    if (process.platform === "win32") {
+      // Windows cannot deliver a POSIX SIGTERM; verify graceful disconnect first.
+      atomic(connection, {});
+      await until(() => read(config).models.length === 1);
+    }
     child.kill("SIGTERM");
     await once(child, "exit");
     assert.deepEqual(read(config), original);
