@@ -66,6 +66,7 @@ test("Windows wraps the placeholder with the selected DW profile key in Chromium
       assert.ok(!script.includes("fixture-protected-key"));
       assert.equal(Buffer.from(options.input, "base64").toString(), "fixture-protected-key");
       assert.equal(options.windowsHide, true);
+      assert.equal(options.encoding, null);
       return output;
     },
   }), "base64");
