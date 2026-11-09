@@ -22,11 +22,13 @@ github:swjybky/magpie-agent-deepwrite
 
 ### DW 的加密凭据
 
-**macOS 首次连接会自动创建 `magpie` 提供商分组和全部模型，不需要手动添加模型或填写密钥。** DW 至少启动过一次即可。
+**macOS、Windows 首次连接会自动创建 `magpie` 提供商分组和全部模型，不需要手动添加模型或填写密钥。** DW 至少启动过一次即可；Windows 需要 v0.2.2 或更新版本。
 
 插件优先复用已有 Magpie 配置的加密数据。没有时，通过 macOS 系统钥匙串读取 **DW 自己的 Safe Storage 项**，按 Electron 的加密格式生成 `magpie-local-bridge` 占位凭据；钥匙串密码仅用于内存中的加密，不写入文件或日志，不解密已有模型密钥，也不借用其他供应商的密钥。系统可能提示授权访问 DW 钥匙串；访问失败时保留原配置，并将原因写入 `status.json`，每分钟最多重试一次。
 
-Windows、Linux 暂时仍需先在 DW 保存一个提供商名为 `magpie` 的模型和非空占位密钥，再退出 DW、开启连接。
+Windows 在当前 DW 数据目录读取 `Local State`，通过系统自带 PowerShell 和当前用户的 DPAPI 解封 DW 的存储密钥，在内存中生成 Electron 可读取的 AES-GCM 占位凭据。不改写 `Local State`，不读取或解密其他供应商的模型密钥。Magpie 和 DW 必须使用同一个 Windows 用户运行；无需管理员权限。
+
+Linux 暂时仍需先在 DW 保存一个提供商名为 `magpie` 的模型和非空占位密钥，再退出 DW、开启连接。
 
 占位密钥只用于 DW → 本地桥接。桥接发给 Magpie 的请求使用 Magpie 分配给 DeepWrite 的**专用网关 key**，不会向上游转发 DW 的占位密钥或原有 Magpie 凭据。
 
@@ -73,6 +75,6 @@ npm test
 BUN_BIN=/path/to/bun npm test
 ```
 
-覆盖无 Magpie 配置的首次导入、空模型列表、占位凭据加密、钥匙串失败脱敏与重试、完整目录增删、默认模型保留、旧版迁移、断开恢复、密文保留、限额与冲突拒绝、路径迁移，以及 Bun 宿主的多模型流式转发、Responses 和终止恢复。未提供 `BUN_BIN` 时 Bun 集成测试明确报告跳过。真实付费模型写作需在用户环境验收。
+覆盖无 Magpie 配置的首次导入、空模型列表、macOS/Windows 占位凭据加密、系统存储失败脱敏与重试、完整目录增删、默认模型保留、旧版迁移、断开恢复、密文保留、限额与冲突拒绝、路径迁移，以及 Bun 宿主的多模型流式转发、Responses 和终止恢复。Windows CI 还用真实 DPAPI 和 Electron 验证首次导入模型的占位凭据可解密。未提供 `BUN_BIN` 时 Bun 集成测试明确报告跳过；Windows 原生凭据测试还需要 `ELECTRON_BIN` 指向 Electron 可执行文件。真实付费模型写作需在用户环境验收。
 
 [Agent 插件规范](https://usemagpie.ai/docs/zh/plugins#agents) · [插件发布规范](https://usemagpie.ai/docs/zh/plugins#publish) · MIT License
