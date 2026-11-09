@@ -238,6 +238,40 @@ test("catalog cannot overflow DW limit and never borrows other provider credenti
     ...original,
     models: [{ ...original.models[0], provider: "another" }],
   });
-  assert.throws(() => synchronize(p, c, ""), /magpie/);
+  assert.throws(() => synchronize(p, c, "", () => {
+    throw new Error("safe storage unavailable");
+  }), /safe storage unavailable/);
   assert.equal(read(p.journal, null), null);
+});
+
+test("first connection creates magpie without a seed and disconnect restores the original", (t) => {
+  const { p, original } = fixture(t);
+  const before = { ...original, models: [{ ...original.models[0], provider: "openai" }] };
+  atomic(p.config, before);
+  let calls = 0;
+  const createCredential = (config) => {
+    assert.equal(config, p.config);
+    calls++;
+    return "encrypted-local-placeholder";
+  };
+  synchronize(p, c, "http://127.0.0.1:1234/token/v1", createCredential);
+  const saved = read(p.config);
+  assert.equal(saved.models[1].provider, "magpie");
+  assert.equal(saved.encryptedApiKeys[saved.models[1].id], "encrypted-local-placeholder");
+  assert.equal(saved.encryptedApiKeys.existing, original.encryptedApiKeys.existing);
+  synchronize(p, c, "http://127.0.0.1:5678/token/v1", createCredential);
+  assert.equal(calls, 1);
+  synchronize(p, null, "", () => assert.fail("disconnect must not access keychain"));
+  assert.deepEqual(read(p.config), before);
+});
+
+test("first connection also supports an empty model list and no stored keys", (t) => {
+  const { p } = fixture(t);
+  const before = { version: 3, models: [], defaultModelId: "", encryptedApiKeys: {} };
+  atomic(p.config, before);
+  synchronize(p, c, "http://127.0.0.1:1234/token/v1", () => "encrypted-local-placeholder");
+  assert.equal(read(p.config).models.length, 1);
+  assert.equal(read(p.config).defaultModelId, modelId(c.model));
+  synchronize(p, null, "");
+  assert.deepEqual(read(p.config), before);
 });

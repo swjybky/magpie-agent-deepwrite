@@ -18,13 +18,15 @@ github:swjybky/magpie-agent-deepwrite
 
 ### 从 v0.1.0 升级
 
-先退出 DW，在 Magpie 关闭 DeepWrite 连接，然后在插件列表更新 **DeepWrite** 到 v0.2.0，再开启连接。旧版单条 `Ollama / Magpie · …` 配置会迁移为完整的 **magpie** 模型列表。不要同时安装本地版和 GitHub 版，它们的 Agent ID 相同。
+先退出 DW，在 Magpie 关闭 DeepWrite 连接，然后在插件列表更新 **DeepWrite** 到最新版，再开启连接。旧版单条 `Ollama / Magpie · …` 配置会迁移为完整的 **magpie** 模型列表。不要同时安装本地版和 GitHub 版，它们的 Agent ID 相同。
 
 ### DW 的加密凭据
 
-为了显示真正的 `magpie` 提供商并通过 DW 原生的密钥检查，插件需要 DW 中**至少一个提供商名称为 `magpie`、已保存密钥的模型**。已有 Magpie 配置的用户不需要再配置。
+**macOS 首次连接会自动创建 `magpie` 提供商分组和全部模型，不需要手动添加模型或填写密钥。** DW 至少启动过一次即可。
 
-首次使用且没有任何 Magpie 配置时，在 DW 添加一个提供商名为 `magpie` 的模型，并保存一个非空本地桥接占位密钥（例如 `magpie-local-bridge`），然后退出 DW、开启连接。DW 会用自己的系统存储加密它；插件只复制这份**加密数据**到新增条目，不解密、不读取钥匙串，也不借用其他供应商的密钥。
+插件优先复用已有 Magpie 配置的加密数据。没有时，通过 macOS 系统钥匙串读取 **DW 自己的 Safe Storage 项**，按 Electron 的加密格式生成 `magpie-local-bridge` 占位凭据；钥匙串密码仅用于内存中的加密，不写入文件或日志，不解密已有模型密钥，也不借用其他供应商的密钥。系统可能提示授权访问 DW 钥匙串；访问失败时保留原配置，并将原因写入 `status.json`，每分钟最多重试一次。
+
+Windows、Linux 暂时仍需先在 DW 保存一个提供商名为 `magpie` 的模型和非空占位密钥，再退出 DW、开启连接。
 
 占位密钥只用于 DW → 本地桥接。桥接发给 Magpie 的请求使用 Magpie 分配给 DeepWrite 的**专用网关 key**，不会向上游转发 DW 的占位密钥或原有 Magpie 凭据。
 
@@ -71,6 +73,6 @@ npm test
 BUN_BIN=/path/to/bun npm test
 ```
 
-覆盖完整目录导入与增删、默认模型保留、旧版迁移、断开恢复、密文保留、限额与冲突拒绝、路径迁移，以及 Bun 宿主的多模型流式转发、Responses 和终止恢复。未提供 `BUN_BIN` 时 Bun 集成测试明确报告跳过。真实付费模型写作需在用户环境验收。
+覆盖无 Magpie 配置的首次导入、空模型列表、占位凭据加密、钥匙串失败脱敏与重试、完整目录增删、默认模型保留、旧版迁移、断开恢复、密文保留、限额与冲突拒绝、路径迁移，以及 Bun 宿主的多模型流式转发、Responses 和终止恢复。未提供 `BUN_BIN` 时 Bun 集成测试明确报告跳过。真实付费模型写作需在用户环境验收。
 
 [Agent 插件规范](https://usemagpie.ai/docs/zh/plugins#agents) · [插件发布规范](https://usemagpie.ai/docs/zh/plugins#publish) · MIT License

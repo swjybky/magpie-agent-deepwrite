@@ -7,7 +7,7 @@ export const agent = {
   dir: "~/.config/magpie-deepwrite",
   ua: ["deepwrite"],
   notice:
-    "已同步完整模型列表。请退出 DeepWrite，等待 2 秒后重开，在 magpie 分组中选模型。卸载前先关闭连接。",
+    "连接信息已写入，插件将自动创建 magpie 分组并同步模型。请退出 DeepWrite，等待 2 秒后重开；实际同步结果见 ~/.config/magpie-deepwrite/status.json。卸载前先关闭连接。",
 };
 export function connect({ gateway, models, model }) {
   if (!gateway?.v1 || !gateway?.key)
