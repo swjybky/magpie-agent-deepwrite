@@ -14,7 +14,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - name: Install Electron for native Windows credential verification
         if: runner.os == 'Windows'
-        run: npm install --no-save --package-lock=false electron@42.5.0
+        run: |
+          npm install --no-save --package-lock=false electron@42.5.0
+          node node_modules/electron/install.js
       - run: npm test
         env:
           BUN_BIN: bun
