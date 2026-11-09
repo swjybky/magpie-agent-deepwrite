@@ -1,11 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { atomic, read } from "../lib/storage.mjs";
 import { synchronize } from "../lib/sync.mjs";
+import { createBridgeCredential } from "../lib/credentials.mjs";
 
 test("Windows first connect without magpie decrypts in real Electron and restores on disconnect", {
   skip: process.platform !== "win32" || !process.env.ELECTRON_BIN,
@@ -35,7 +36,24 @@ test("Windows first connect without magpie decrypts in real Electron and restore
     catalogVersion: 2, gateway: "http://127.0.0.1:12345/v1", key: "fixture-agent-key",
     models: [{ id: "fixture/first" }, { id: "fixture/second" }],
   };
-  synchronize(paths, connection, "http://127.0.0.1:12346/fixture/v1");
+  synchronize(paths, connection, "http://127.0.0.1:12346/fixture/v1", (path) => createBridgeCredential(path, {
+    readFile(path, encoding) {
+      const text = readFileSync(path, encoding);
+      const key = Buffer.from(JSON.parse(text).os_crypt.encrypted_key, "base64");
+      console.log("Fixture storage metadata", { dpapi: key.subarray(0, 5).toString() === "DPAPI", length: key.length });
+      return text;
+    },
+    run(command, args, options) {
+      try {
+        const output = execFileSync(command, args, options);
+        console.log("Fixture DPAPI returned", { outputLength: output.length, keyLength: Buffer.from(output.toString().trim(), "base64").length });
+        return output;
+      } catch (error) {
+        console.log("Fixture DPAPI process failed", { code: error.code, status: error.status, signal: error.signal });
+        throw error;
+      }
+    },
+  }));
   assert.equal(read(config).models.length, 3);
   assert.equal(readFileSync(join(root, "Local State"), "utf8"), localState);
   electron("verify");

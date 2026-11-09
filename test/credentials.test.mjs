@@ -80,10 +80,12 @@ test("Windows wraps the placeholder with the selected DW profile key in Chromium
 
 test("Windows refuses missing or unknown master keys without calling PowerShell", () => {
   for (const [i, state] of [{}, { os_crypt: { encrypted_key: Buffer.from("APPBunsupported").toString("base64") } }].entries()) {
+    let calls = 0;
     assert.throws(() => createBridgeCredential(`missing-${i}/config/models.json`, {
       platform: "win32", readFile: () => JSON.stringify(state),
-      run: () => assert.fail("must not run"),
+      run: () => { calls++; throw new Error("must not run"); },
     }), /同一 Windows 用户/);
+    assert.equal(calls, 0);
   }
 });
 
